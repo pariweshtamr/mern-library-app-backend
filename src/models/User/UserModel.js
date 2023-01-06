@@ -9,3 +9,7 @@ export const createUser = (userData) => {
 export const getUser = (userData) => {
   return UserSchema.findOne(userData)
 }
+
+export const getUserById = (_id) => {
+  return UserSchema.findById(_id)
+}
