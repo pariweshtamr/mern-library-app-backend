@@ -1,11 +1,13 @@
 import express from "express"
 import { ERROR, SUCCESS } from "../constant.js"
+import { hashPassword } from "../helpers/bcrypt.helper.js"
 import {
-  findBookAndUpdate,
-  getBook,
-  getBooksBorrowedByUser,
-} from "../models/Book/BookModel.js"
-import { createUser, getUser, getUserById } from "../models/User/UserModel.js"
+  createUser,
+  editUser,
+  getUser,
+  getUserByEmail,
+  getUserById,
+} from "../models/User/UserModel.js"
 const router = express.Router()
 
 router.get("/", (req, res, next) => {
@@ -21,25 +23,35 @@ router.get("/", (req, res, next) => {
 
 // Create new user
 router.post("/", async (req, res, next) => {
+  const { email } = req.body
   try {
-    const result = await createUser(req.body)
+    const userExists = await getUserByEmail(email)
+    if (userExists) {
+      return res.json({
+        status: "error",
+        message: "User already exists! Please Log in.",
+      })
+    }
 
-    result?._id
-      ? res.json({
+    // encrypt password
+    const hashPass = hashPassword(req.body.password)
+
+    if (hashPass) {
+      req.body.password = hashPass
+      const result = await createUser(req.body)
+
+      if (result?._id) {
+        return res.json({
           status: SUCCESS,
           message: "User has been created successfully. You may now log in!",
         })
-      : res.json({
-          status: ERROR,
-          message: "User has not been created. Please try again!",
-        })
-  } catch (error) {
-    if (error.message.includes("E11000 duiplicate key")) {
-      res.json({
-        status: SUCCESS,
-        message: "An account using this email already exists. Please log in!",
+      }
+      return res.json({
+        status: ERROR,
+        message: "User has not been created. Please try again!",
       })
     }
+  } catch (error) {
     next(error)
   }
 })
@@ -64,78 +76,23 @@ router.post("/login", async (req, res, next) => {
   }
 })
 
-// borrow book
-router.post("/borrow", async (req, res, next) => {
+// Edit user
+router.patch("/", async (req, res, next) => {
   try {
-    const bookId = req.body.bookId
-    const book = await getBook({ _id: bookId })
-    const user = await getUserById({ _id: req.body.userId })
+    const { authorization } = req.headers
 
-    if (book?._id && user._id) {
-      if (book.borrowedBy.includes(user._id)) {
-        return res
-          .status(200)
-          .json({ message: "You have already borrowed this book!" })
-      }
+    const updatedUser = await editUser(authorization, req.body)
+
+    if (updatedUser?._id) {
+      return res.json({
+        status: SUCCESS,
+        message: "User info updated successfully!",
+      })
     }
-
-    const updateBook = await findBookAndUpdate(bookId, {
-      borrowedBy: [...book.borrowedBy, user._id],
+    res.json({
+      status: ERROR,
+      message: "Unable to update user information. Please try agina later!",
     })
-
-    updateBook._id
-      ? res.json({
-          status: SUCCESS,
-          message: "You have borrowed this book!",
-          book: {
-            ...updateBook.toJSON(),
-            availableQuantity:
-              updateBook.quantity - updateBook.borrowedBy.length,
-          },
-        })
-      : res.json({
-          status: ERROR,
-          message: "Something went wrong! Please try again later.",
-        })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// return book
-router.patch("/return", async (req, res, next) => {
-  try {
-    const bookId = req.body.bookId
-    const userId = req.body.userId
-    const book = await getBook({ _id: bookId })
-    const user = await getUserById(userId)
-
-    const updateBook = await findBookAndUpdate(bookId, {
-      $pull: { borrowedBy: user._id },
-    })
-    console.log(updateBook)
-    updateBook._id
-      ? res.json({
-          status: SUCCESS,
-          message: "You have returned this book!",
-          book: {
-            ...updateBook.toJSON(),
-          },
-        })
-      : res.json({
-          status: ERROR,
-          message: "Unable to return book! Please try again later.",
-        })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// get borrowed books by user
-router.get("/borrowed-books", async (req, res, next) => {
-  try {
-    const result = await getBooksBorrowedByUser(req.headers.authorization)
-    return res.status(200).json({ books: result })
   } catch (error) {
     next(error)
   }

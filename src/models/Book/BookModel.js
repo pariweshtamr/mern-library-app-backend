@@ -25,11 +25,14 @@ export const findBookAndUpdate = (_id, obj) => {
   return BookSchema.findByIdAndUpdate(_id, obj, { new: true })
 }
 
-// delete book
+// delete books
 export const deleteBooks = (ids) => {
   return BookSchema.deleteMany({
     _id: {
       $in: ids,
     },
   })
+}
+export const deleteBook = (_id) => {
+  return BookSchema.findByIdAndDelete(_id)
 }
