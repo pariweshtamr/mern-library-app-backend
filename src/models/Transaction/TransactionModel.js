@@ -10,8 +10,9 @@ export const getAllTransactions = () => {
 
 export const getTransactionByQuery = (userId, isbn) => {
   return TransactionSchema.findOne({
-    borrowedBy: { $in: userId },
+    "borrowedBy.userId": { $in: userId },
     "borrowedBook.isbn": { $in: isbn },
+    returnDate: null,
   })
 }
 

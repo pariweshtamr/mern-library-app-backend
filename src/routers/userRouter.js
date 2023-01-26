@@ -1,6 +1,6 @@
 import express from "express"
 import { ERROR, SUCCESS } from "../constant.js"
-import { hashPassword } from "../helpers/bcrypt.helper.js"
+import { comparePassword, hashPassword } from "../helpers/bcrypt.helper.js"
 import {
   createUser,
   editUser,
@@ -10,12 +10,11 @@ import {
 } from "../models/User/UserModel.js"
 const router = express.Router()
 
-router.get("/", (req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    res.json({
-      status: SUCCESS,
-      message: "todo get user",
-    })
+    const user = await getUserById(req.headers.authorization)
+    user.password = undefined
+    res.json(user)
   } catch (error) {
     next(error)
   }
@@ -59,18 +58,22 @@ router.post("/", async (req, res, next) => {
 // Login user
 router.post("/login", async (req, res, next) => {
   try {
-    const { email } = req.body
+    const { email, password } = req.body
     const user = await getUser({ email })
 
-    user.password = undefined
+    if (user?._id) {
+      const isPassMatched = comparePassword(password, user.password)
 
-    user?._id
-      ? res.json({
+      if (isPassMatched) {
+        user.password = undefined
+        return res.json({
           status: SUCCESS,
           message: "Login Successful",
           user,
         })
-      : res.json({ status: ERROR, message: "Error! Invalid Login Details." })
+      }
+    }
+    res.json({ status: ERROR, message: "Error! Invalid Login Details." })
   } catch (error) {
     next(error)
   }
@@ -92,6 +95,39 @@ router.patch("/", async (req, res, next) => {
     res.json({
       status: ERROR,
       message: "Unable to update user information. Please try agina later!",
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update password
+router.patch("/password-update", async (req, res, next) => {
+  try {
+    const user = await getUserById(req.headers.authorization)
+    const { currentPassword } = req.body
+
+    const passMatched = comparePassword(currentPassword, user.password)
+    if (passMatched) {
+      const hashedPass = hashPassword(req.body.password)
+      if (hashedPass) {
+        const u = await editUser(user._id, { password: hashedPass })
+        if (u?._id) {
+          res.json({
+            status: "success",
+            message: "Password updated successfully!",
+          })
+          return
+        }
+        res.json({
+          status: "error",
+          message: "Unable to update password. Please try again later!",
+        })
+      }
+    }
+    res.json({
+      status: "error",
+      message: "Please enter the correct current password!",
     })
   } catch (error) {
     next(error)

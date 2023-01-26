@@ -111,6 +111,12 @@ router.post("/borrow", async (req, res, next) => {
 
     if (book?._id && user._id) {
       if (book.borrowedBy.length) {
+        if (book.borrowedBy.includes(user?._id)) {
+          return res.json({
+            status: "error",
+            message: "You have already borrowed this book.",
+          })
+        }
         return res.json({
           status: ERROR,
           message:
@@ -125,7 +131,11 @@ router.post("/borrow", async (req, res, next) => {
     }
 
     const transaction = await postTransaction({
-      borrowedBy: user._id,
+      borrowedBy: {
+        userId: user?._id,
+        userFname: user?.fName,
+        userLname: user?.lName,
+      },
       borrowedBook: {
         isbn: book.isbn,
         thumbnail: book.thumbnail,
@@ -140,15 +150,15 @@ router.post("/borrow", async (req, res, next) => {
         borrowedBy: [...book.borrowedBy, user._id],
       })
 
-      updateBook._id
+      return updateBook._id
         ? res.json({
             status: SUCCESS,
             message: "You have borrowed this book!",
-            book: {
-              ...updateBook.toJSON(),
-              availableQuantity:
-                updateBook.quantity - updateBook.borrowedBy.length,
-            },
+            // book: {
+            //   ...updateBook.toJSON(),
+            //   availableQuantity:
+            //     updateBook.quantity - updateBook.borrowedBy.length,
+            // },
           })
         : res.json({
             status: ERROR,
@@ -170,29 +180,31 @@ router.patch("/return", async (req, res, next) => {
 
     const transaction = await getTransactionByQuery(authorization, book.isbn)
 
-    const updateTransaction = await findTransactionByIdAndUpdate(
-      transaction._id,
-      {
-        returnDate: new Date(),
+    if (transaction) {
+      const updateTransaction = await findTransactionByIdAndUpdate(
+        transaction?._id,
+        {
+          returnDate: new Date(),
+        }
+      )
+      console.log(updateTransaction)
+      if (updateTransaction?.returnDate) {
+        const updateBook = await findBookAndUpdate(bookId, {
+          $pull: { borrowedBy: user._id },
+        })
+        return updateBook._id
+          ? res.json({
+              status: SUCCESS,
+              message: "You have returned this book!",
+              // book: {
+              //   ...updateBook.toJSON(),
+              // },
+            })
+          : res.json({
+              status: ERROR,
+              message: "Unable to return book! Please try again later.",
+            })
       }
-    )
-
-    if (updateTransaction?.returnDate) {
-      const updateBook = await findBookAndUpdate(bookId, {
-        $pull: { borrowedBy: user._id },
-      })
-      updateBook._id
-        ? res.json({
-            status: SUCCESS,
-            message: "You have returned this book!",
-            book: {
-              ...updateBook.toJSON(),
-            },
-          })
-        : res.json({
-            status: ERROR,
-            message: "Unable to return book! Please try again later.",
-          })
     }
   } catch (error) {
     next(error)
