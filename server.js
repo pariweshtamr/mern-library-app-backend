@@ -3,6 +3,8 @@ dotenv.config()
 import express from "express"
 import cors from "cors"
 import { ERROR } from "./src/constant.js"
+import path from "path"
+const __dirname = path.resolve()
 
 const app = express()
 const PORT = process.env.NODE_ENV || 8000
@@ -14,6 +16,18 @@ connectDB()
 //middlewares
 app.use(express.json())
 app.use(cors())
+
+// static content serve
+app.use(express.static(path.join(__dirname, "/client/build")))
+
+// serving frontend
+app.use("/", (req, res, next) => {
+  try {
+    res.sendFile(path.join(__dirname, "/index.html"))
+  } catch (error) {
+    next(error)
+  }
+})
 
 //global error handler
 app.use((error, req, res, next) => {
