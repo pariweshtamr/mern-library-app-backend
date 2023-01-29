@@ -187,7 +187,6 @@ router.patch("/return", async (req, res, next) => {
           returnDate: new Date(),
         }
       )
-      console.log(updateTransaction)
       if (updateTransaction?.returnDate) {
         const updateBook = await findBookAndUpdate(bookId, {
           $pull: { borrowedBy: user._id },
